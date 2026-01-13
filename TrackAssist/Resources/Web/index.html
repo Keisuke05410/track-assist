@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrackAssist - タイムライン</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>
+            <span class="logo">&#128337;</span>
+            TrackAssist
+        </h1>
+        <div class="date-nav">
+            <button id="prev-day" class="nav-btn">&larr; 前日</button>
+            <input type="date" id="date-picker">
+            <button id="next-day" class="nav-btn">翌日 &rarr;</button>
+            <button id="today-btn" class="nav-btn today">今日</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="timeline-section">
+            <h2>タイムライン</h2>
+            <div class="time-axis">
+                <span>0:00</span>
+                <span>6:00</span>
+                <span>12:00</span>
+                <span>18:00</span>
+                <span>24:00</span>
+            </div>
+            <div id="timeline-container">
+                <canvas id="timeline-canvas"></canvas>
+            </div>
+        </section>
+
+        <section class="details-section">
+            <h2>詳細</h2>
+            <div id="details-panel">
+                <p class="placeholder">タイムラインのブロックをクリックすると詳細が表示されます</p>
+            </div>
+        </section>
+
+        <section class="summary-section">
+            <h2>アプリ別集計</h2>
+            <div id="summary-container">
+                <p class="placeholder">データを読み込み中...</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="status" id="status">
+            <span class="status-dot"></span>
+            <span class="status-text">接続中...</span>
+        </div>
+        <div class="total-time" id="total-time"></div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

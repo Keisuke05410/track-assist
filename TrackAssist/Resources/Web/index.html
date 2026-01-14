@@ -20,32 +20,49 @@
         </div>
     </header>
 
-    <main>
-        <section class="timeline-section">
-            <h2>タイムライン</h2>
-            <div class="time-axis">
-                <span>0:00</span>
-                <span>6:00</span>
-                <span>12:00</span>
-                <span>18:00</span>
-                <span>24:00</span>
+    <main class="main-layout">
+        <!-- 左側: 詳細パネル -->
+        <aside class="details-panel">
+            <div class="details-header">
+                <h2>詳細</h2>
             </div>
-            <div id="timeline-container">
-                <canvas id="timeline-canvas"></canvas>
+            <div id="selected-details" class="selected-details">
+                <p class="placeholder">タイムラインをクリックすると詳細が表示されます</p>
             </div>
-        </section>
-
-        <section class="details-section">
-            <h2>詳細</h2>
-            <div id="details-panel">
-                <p class="placeholder">タイムラインのブロックをクリックすると詳細が表示されます</p>
+            <div class="activity-list-header">
+                <h3>アクティビティ</h3>
             </div>
-        </section>
-
-        <section class="summary-section">
-            <h2>アプリ別集計</h2>
-            <div id="summary-container">
+            <div id="activity-list" class="activity-list">
                 <p class="placeholder">データを読み込み中...</p>
+            </div>
+        </aside>
+
+        <!-- 右側: タイムライン -->
+        <section class="timeline-panel">
+            <div class="timeline-controls">
+                <h2>タイムライン</h2>
+                <div class="zoom-controls">
+                    <button id="zoom-out" class="zoom-btn" title="縮小">−</button>
+                    <span id="zoom-level">100%</span>
+                    <button id="zoom-in" class="zoom-btn" title="拡大">+</button>
+                    <button id="zoom-reset" class="zoom-btn zoom-reset" title="リセット">リセット</button>
+                </div>
+            </div>
+            <div class="timeline-wrapper">
+                <div class="time-axis-vertical">
+                    <span>0:00</span>
+                    <span>3:00</span>
+                    <span>6:00</span>
+                    <span>9:00</span>
+                    <span>12:00</span>
+                    <span>15:00</span>
+                    <span>18:00</span>
+                    <span>21:00</span>
+                    <span>24:00</span>
+                </div>
+                <div id="timeline-container" class="timeline-scroll">
+                    <canvas id="timeline-canvas"></canvas>
+                </div>
             </div>
         </section>
     </main>

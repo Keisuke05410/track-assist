@@ -1,7 +1,15 @@
 // State
 let currentDate = new Date();
 let timelineData = [];
-let summaryData = [];
+let selectedSegment = null;
+let hoveredSegment = null;
+
+// Zoom state
+let zoomLevel = 1.0;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4.0;
+const ZOOM_STEP = 0.25;
+const BASE_HEIGHT = 600;
 
 // DOM Elements
 const datePicker = document.getElementById('date-picker');
@@ -9,8 +17,9 @@ const prevDayBtn = document.getElementById('prev-day');
 const nextDayBtn = document.getElementById('next-day');
 const todayBtn = document.getElementById('today-btn');
 const timelineCanvas = document.getElementById('timeline-canvas');
-const detailsPanel = document.getElementById('details-panel');
-const summaryContainer = document.getElementById('summary-container');
+const timelineContainer = document.getElementById('timeline-container');
+const selectedDetailsEl = document.getElementById('selected-details');
+const activityListEl = document.getElementById('activity-list');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 const totalTimeEl = document.getElementById('total-time');
@@ -18,13 +27,23 @@ const totalTimeEl = document.getElementById('total-time');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeDatePicker();
+    loadZoomLevel();
     setupEventListeners();
+    setupZoomControls();
     loadData();
     startAutoRefresh();
 });
 
 function initializeDatePicker() {
     datePicker.value = formatDate(currentDate);
+}
+
+function loadZoomLevel() {
+    const saved = localStorage.getItem('trackassist-zoom');
+    if (saved) {
+        zoomLevel = parseFloat(saved);
+        document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
+    }
 }
 
 function setupEventListeners() {
@@ -52,58 +71,100 @@ function setupEventListeners() {
     });
 
     timelineCanvas.addEventListener('click', handleTimelineClick);
+    timelineCanvas.addEventListener('mousemove', handleTimelineHover);
+    timelineCanvas.addEventListener('mouseleave', hideTooltip);
     window.addEventListener('resize', drawTimeline);
+}
+
+function setupZoomControls() {
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomResetBtn = document.getElementById('zoom-reset');
+
+    zoomInBtn.addEventListener('click', () => setZoom(zoomLevel + ZOOM_STEP));
+    zoomOutBtn.addEventListener('click', () => setZoom(zoomLevel - ZOOM_STEP));
+    zoomResetBtn.addEventListener('click', () => setZoom(1.0));
+
+    // Mouse wheel zoom (Ctrl/Cmd + scroll)
+    timelineContainer.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+            const scrollRatio = timelineContainer.scrollTop / (timelineContainer.scrollHeight || 1);
+            setZoom(zoomLevel + delta);
+            requestAnimationFrame(() => {
+                timelineContainer.scrollTop = scrollRatio * timelineContainer.scrollHeight;
+            });
+        }
+    }, { passive: false });
+
+    updateZoomButtons();
+}
+
+function setZoom(newZoom) {
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+    document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
+    updateZoomButtons();
+    drawTimeline();
+    localStorage.setItem('trackassist-zoom', zoomLevel);
+}
+
+function updateZoomButtons() {
+    document.getElementById('zoom-in').disabled = zoomLevel >= MAX_ZOOM;
+    document.getElementById('zoom-out').disabled = zoomLevel <= MIN_ZOOM;
 }
 
 // Data Loading
 async function loadData() {
     try {
         const dateStr = formatDate(currentDate);
-        const [timelineRes, summaryRes, statusRes] = await Promise.all([
+        const [timelineRes, statusRes] = await Promise.all([
             fetch(`/api/timeline?date=${dateStr}`),
-            fetch(`/api/summary?date=${dateStr}`),
             fetch('/api/status')
         ]);
 
         const timeline = await timelineRes.json();
-        const summary = await summaryRes.json();
         const status = await statusRes.json();
 
         timelineData = timeline.segments || [];
-        summaryData = summary.apps || [];
 
         drawTimeline();
-        renderSummary(summary);
+        renderActivityList();
         updateStatus(status);
+        updateTotalTime();
     } catch (error) {
-        console.error('データの読み込みに失敗しました:', error);
+        console.error('Failed to load data:', error);
         updateStatus({ isTracking: false, isIdle: false });
     }
 }
 
-// Timeline Drawing
+// Timeline Drawing (Vertical)
 function drawTimeline() {
     const canvas = timelineCanvas;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
 
-    // Set canvas size
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const containerWidth = timelineContainer.clientWidth;
+    const canvasHeight = BASE_HEIGHT * zoomLevel;
 
-    // Clear
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    // Set canvas size
+    canvas.width = containerWidth * dpr;
+    canvas.height = canvasHeight * dpr;
+    canvas.style.width = containerWidth + 'px';
+    canvas.style.height = canvasHeight + 'px';
+    ctx.scale(dpr, dpr);
 
     // Background
     ctx.fillStyle = '#0f3460';
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.fillRect(0, 0, containerWidth, canvasHeight);
 
-    // Draw segments
+    // Draw segments (vertical: Y axis = time)
     const totalSeconds = 24 * 60 * 60;
     const dayStart = new Date(currentDate);
     dayStart.setHours(0, 0, 0, 0);
+
+    const padding = 8;
+    const barWidth = containerWidth - (padding * 2);
 
     timelineData.forEach(segment => {
         const startTime = new Date(segment.startTime);
@@ -112,48 +173,148 @@ function drawTimeline() {
         const startSeconds = (startTime - dayStart) / 1000;
         const endSeconds = (endTime - dayStart) / 1000;
 
-        const x = (startSeconds / totalSeconds) * rect.width;
-        const width = ((endSeconds - startSeconds) / totalSeconds) * rect.width;
+        // Y axis (top = 0:00, bottom = 24:00)
+        const y = (startSeconds / totalSeconds) * canvasHeight;
+        const height = ((endSeconds - startSeconds) / totalSeconds) * canvasHeight;
 
         ctx.fillStyle = segment.color;
-        ctx.fillRect(x, 5, Math.max(width, 2), rect.height - 10);
+        ctx.fillRect(padding, y, barWidth, Math.max(height, 3));
+
+        // Highlight selected segment
+        if (selectedSegment && segment.startTime === selectedSegment.startTime) {
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(padding, y, barWidth, Math.max(height, 3));
+        }
     });
 
-    // Draw hour lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    // Draw hour lines (every 3 hours)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
-    for (let hour = 0; hour <= 24; hour += 6) {
-        const x = (hour / 24) * rect.width;
+    for (let hour = 0; hour <= 24; hour += 3) {
+        const y = (hour / 24) * canvasHeight;
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, rect.height);
+        ctx.moveTo(0, y);
+        ctx.lineTo(containerWidth, y);
         ctx.stroke();
+    }
+
+    // Current time indicator (today only)
+    if (isToday(currentDate)) {
+        const now = new Date();
+        const nowSeconds = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+        const nowY = (nowSeconds / totalSeconds) * canvasHeight;
+
+        ctx.strokeStyle = '#e94560';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, nowY);
+        ctx.lineTo(containerWidth, nowY);
+        ctx.stroke();
+
+        // Arrow indicator
+        ctx.fillStyle = '#e94560';
+        ctx.beginPath();
+        ctx.moveTo(0, nowY - 5);
+        ctx.lineTo(8, nowY);
+        ctx.lineTo(0, nowY + 5);
+        ctx.closePath();
+        ctx.fill();
     }
 }
 
-function handleTimelineClick(event) {
+function getSegmentAtPosition(clientY) {
     const rect = timelineCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const clickRatio = x / rect.width;
+    const y = clientY - rect.top;
+    const canvasHeight = BASE_HEIGHT * zoomLevel;
+
+    const clickRatio = y / canvasHeight;
     const clickSeconds = clickRatio * 24 * 60 * 60;
 
     const dayStart = new Date(currentDate);
     dayStart.setHours(0, 0, 0, 0);
 
-    // Find clicked segment
-    const clickedSegment = timelineData.find(segment => {
+    return timelineData.find(segment => {
         const startTime = new Date(segment.startTime);
         const endTime = new Date(segment.endTime);
         const startSeconds = (startTime - dayStart) / 1000;
         const endSeconds = (endTime - dayStart) / 1000;
         return clickSeconds >= startSeconds && clickSeconds <= endSeconds;
     });
+}
 
-    if (clickedSegment) {
-        showDetails(clickedSegment);
+function handleTimelineClick(event) {
+    const segment = getSegmentAtPosition(event.clientY);
+
+    if (segment) {
+        selectedSegment = segment;
+        showDetails(segment);
+        highlightActivityItem(segment);
+        drawTimeline();
     } else {
+        selectedSegment = null;
         clearDetails();
+        clearActivityHighlight();
+        drawTimeline();
     }
+}
+
+function handleTimelineHover(event) {
+    const segment = getSegmentAtPosition(event.clientY);
+
+    if (segment !== hoveredSegment) {
+        hoveredSegment = segment;
+        timelineCanvas.style.cursor = segment ? 'pointer' : 'default';
+
+        if (segment) {
+            showTooltip(event, segment);
+        } else {
+            hideTooltip();
+        }
+    } else if (segment) {
+        // Update tooltip position
+        updateTooltipPosition(event);
+    }
+}
+
+// Tooltip
+function showTooltip(event, segment) {
+    let tooltip = document.getElementById('timeline-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'timeline-tooltip';
+        tooltip.className = 'timeline-tooltip';
+        document.body.appendChild(tooltip);
+    }
+
+    const startTime = new Date(segment.startTime);
+    const endTime = new Date(segment.endTime);
+
+    tooltip.innerHTML = `
+        <strong>${escapeHtml(segment.appName)}</strong>
+        ${formatTime(startTime)} - ${formatTime(endTime)}<br>
+        ${formatDuration(segment.durationSeconds)}
+    `;
+
+    tooltip.style.left = (event.clientX + 15) + 'px';
+    tooltip.style.top = (event.clientY + 15) + 'px';
+    tooltip.style.display = 'block';
+}
+
+function updateTooltipPosition(event) {
+    const tooltip = document.getElementById('timeline-tooltip');
+    if (tooltip && tooltip.style.display === 'block') {
+        tooltip.style.left = (event.clientX + 15) + 'px';
+        tooltip.style.top = (event.clientY + 15) + 'px';
+    }
+}
+
+function hideTooltip() {
+    const tooltip = document.getElementById('timeline-tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+    hoveredSegment = null;
 }
 
 // Details Panel
@@ -174,45 +335,95 @@ function showDetails(segment) {
         `;
     }
 
-    detailsPanel.innerHTML = `
+    selectedDetailsEl.innerHTML = `
         <div class="detail-item">
             <div class="detail-header">
                 <span class="detail-color" style="background: ${segment.color}"></span>
                 <span class="detail-app">${escapeHtml(segment.appName)}</span>
-                <span class="detail-time">${formatTime(startTime)} - ${formatTime(endTime)} (${duration})</span>
+                <span class="detail-time">${formatTime(startTime)} - ${formatTime(endTime)}</span>
             </div>
+            <div class="detail-duration">${duration}</div>
             ${titlesHtml}
         </div>
     `;
 }
 
 function clearDetails() {
-    detailsPanel.innerHTML = '<p class="placeholder">タイムラインのブロックをクリックすると詳細が表示されます</p>';
+    selectedDetailsEl.innerHTML = '<p class="placeholder">タイムラインをクリックすると詳細が表示されます</p>';
 }
 
-// Summary
-function renderSummary(summary) {
-    if (!summaryData || summaryData.length === 0) {
-        summaryContainer.innerHTML = '<p class="placeholder">この日のデータはありません</p>';
-        totalTimeEl.textContent = '';
+// Activity List
+function renderActivityList() {
+    if (!timelineData || timelineData.length === 0) {
+        activityListEl.innerHTML = '<p class="placeholder">この日のデータはありません</p>';
         return;
     }
 
-    const maxPercent = Math.max(...summaryData.map(s => s.percentage));
+    activityListEl.innerHTML = timelineData.map((segment, index) => {
+        const startTime = new Date(segment.startTime);
+        const endTime = new Date(segment.endTime);
+        const isSelected = selectedSegment && segment.startTime === selectedSegment.startTime;
 
-    summaryContainer.innerHTML = summaryData.map(app => `
-        <div class="summary-item">
-            <span class="summary-color" style="background: ${app.color}"></span>
-            <span class="summary-app">${escapeHtml(app.appName)}</span>
-            <div class="summary-bar-container">
-                <div class="summary-bar" style="width: ${(app.percentage / maxPercent) * 100}%; background: ${app.color}"></div>
+        return `
+            <div class="activity-item ${isSelected ? 'selected' : ''}" data-index="${index}">
+                <span class="activity-color" style="background: ${segment.color}"></span>
+                <span class="activity-time">${formatTime(startTime)} - ${formatTime(endTime)}</span>
+                <span class="activity-app">${escapeHtml(segment.appName)}</span>
             </div>
-            <span class="summary-time">${formatDuration(app.totalSeconds)}</span>
-            <span class="summary-percent">${app.percentage.toFixed(1)}%</span>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
-    totalTimeEl.textContent = `合計: ${formatDuration(summary.totalSeconds)}`;
+    // Add click handlers
+    activityListEl.querySelectorAll('.activity-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const index = parseInt(item.dataset.index);
+            const segment = timelineData[index];
+            if (segment) {
+                selectedSegment = segment;
+                showDetails(segment);
+                highlightActivityItem(segment);
+                drawTimeline();
+                scrollToSegment(segment);
+            }
+        });
+    });
+}
+
+function highlightActivityItem(segment) {
+    activityListEl.querySelectorAll('.activity-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    const index = timelineData.findIndex(s => s.startTime === segment.startTime);
+    if (index >= 0) {
+        const item = activityListEl.querySelector(`[data-index="${index}"]`);
+        if (item) {
+            item.classList.add('selected');
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+}
+
+function clearActivityHighlight() {
+    activityListEl.querySelectorAll('.activity-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+}
+
+function scrollToSegment(segment) {
+    const dayStart = new Date(currentDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const startTime = new Date(segment.startTime);
+    const startSeconds = (startTime - dayStart) / 1000;
+    const totalSeconds = 24 * 60 * 60;
+
+    const canvasHeight = BASE_HEIGHT * zoomLevel;
+    const y = (startSeconds / totalSeconds) * canvasHeight;
+
+    timelineContainer.scrollTo({
+        top: y - timelineContainer.clientHeight / 3,
+        behavior: 'smooth'
+    });
 }
 
 // Status
@@ -230,6 +441,16 @@ function updateStatus(status) {
     }
 }
 
+function updateTotalTime() {
+    if (!timelineData || timelineData.length === 0) {
+        totalTimeEl.textContent = '';
+        return;
+    }
+
+    const totalSeconds = timelineData.reduce((sum, s) => sum + (s.durationSeconds || 0), 0);
+    totalTimeEl.textContent = `合計: ${formatDuration(totalSeconds)}`;
+}
+
 // Auto Refresh
 function startAutoRefresh() {
     setInterval(() => {
@@ -237,7 +458,7 @@ function startAutoRefresh() {
         if (formatDate(currentDate) === formatDate(today)) {
             loadData();
         }
-    }, 60000); // 1分ごと
+    }, 60000);
 }
 
 // Utilities
@@ -265,6 +486,11 @@ function formatDuration(seconds) {
         const minutes = Math.floor((seconds % 3600) / 60);
         return minutes > 0 ? `${hours}時間${minutes}分` : `${hours}時間`;
     }
+}
+
+function isToday(date) {
+    const today = new Date();
+    return formatDate(date) === formatDate(today);
 }
 
 function escapeHtml(text) {

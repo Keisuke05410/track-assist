@@ -35,10 +35,13 @@ TrackAssist/
 # ビルド
 swift build
 
-# 実行
+# 実行（開発用: ポート19081）
 swift run TrackAssist
 
-# タイムライン表示
+# タイムライン表示（開発時）
+open http://localhost:19081
+
+# タイムライン表示（本番サービス）
 open http://localhost:19080
 ```
 
@@ -51,7 +54,9 @@ open http://localhost:19080
 
 - **アクセシビリティ権限**: ウィンドウタイトル取得に必要。初回起動時にシステム環境設定で許可
 - **データ保持**: SQLiteに保存、1週間で自動削除
-- **ポート**: localhost:19080 を使用
+- **ポート**:
+  - 本番（リリースビルド）: localhost:19080
+  - 開発（デバッグビルド）: localhost:19081
 
 ## 公開リポジトリのルール
 
@@ -91,7 +96,7 @@ swift build -c release && cp .build/release/TrackAssist ~/.local/bin/ && launchc
 Web UI（`Resources/Web/`）を変更した場合は、必ずPlaywrightでブラウザ確認を行うこと:
 
 1. アプリをビルド・起動: `swift build && swift run TrackAssist`
-2. Playwrightで http://localhost:19080 にアクセス
+2. Playwrightで http://localhost:19081 にアクセス（開発用ポート）
 3. スナップショットまたはスクリーンショットで表示を確認
 4. 白い画面やレイアウト崩れがないことを確認してから完了とする
 

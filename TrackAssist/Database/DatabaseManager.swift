@@ -21,7 +21,14 @@ final class DatabaseManager {
         }
 
         let dbPath = appDirectory.appendingPathComponent("activities.sqlite")
-        dbQueue = try DatabaseQueue(path: dbPath.path)
+
+        // WALモードで同時アクセスを許可、busyタイムアウトで競合時にリトライ
+        var config = Configuration()
+        config.prepareDatabase { db in
+            try db.execute(sql: "PRAGMA journal_mode = WAL")
+            try db.execute(sql: "PRAGMA busy_timeout = 5000")  // 5秒待機
+        }
+        dbQueue = try DatabaseQueue(path: dbPath.path, configuration: config)
 
         try migrate()
         scheduleCleanup()
@@ -276,8 +283,8 @@ final class DatabaseManager {
         // アプリ名からハッシュベースの色を生成
         let hash = appName.utf8.reduce(0) { $0 &+ Int($1) }
         let hue = Double(abs(hash) % 360)
-        let saturation = 0.65
-        let lightness = 0.55
+        let saturation = 0.50
+        let lightness = 0.60
 
         // HSL to RGB conversion
         let c = (1 - abs(2 * lightness - 1)) * saturation

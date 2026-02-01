@@ -54,3 +54,9 @@ fastlane/test_output
 *.app
 *.dSYM.zip
 *.dSYM
+
+# Local installation (do not commit)
+install-service.sh
+*.plist
+!TrackAssist/Resources/Info.plist
+.mailmap

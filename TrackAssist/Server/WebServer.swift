@@ -3,7 +3,7 @@ import FlyingFox
 
 actor WebServer {
     private var server: HTTPServer?
-    private let port: UInt16 = 8080
+    private let port: UInt16 = 19080
 
     func start() async throws {
         server = HTTPServer(address: .loopback(port: port))

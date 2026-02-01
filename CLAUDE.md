@@ -39,7 +39,7 @@ swift build
 swift run TrackAssist
 
 # タイムライン表示
-open http://localhost:8080
+open http://localhost:19080
 ```
 
 ## 主要な依存関係
@@ -51,7 +51,24 @@ open http://localhost:8080
 
 - **アクセシビリティ権限**: ウィンドウタイトル取得に必要。初回起動時にシステム環境設定で許可
 - **データ保持**: SQLiteに保存、1週間で自動削除
-- **ポート**: localhost:8080 を使用
+- **ポート**: localhost:19080 を使用
+
+## 公開リポジトリのルール
+
+このリポジトリは公開されているため、以下を遵守すること：
+
+### コミット禁止ファイル
+
+- `install-service.sh` - ローカルインストール用スクリプト
+- `*.plist`（`TrackAssist/Resources/Info.plist`を除く） - LaunchAgent設定など
+- `.mailmap` - メールアドレス変換用
+- ユーザー名やホームディレクトリパスを含むファイル
+
+### 個人情報の取り扱い
+
+- ユーザー名（例: `/Users/xxxxx/`）を含むパスをハードコードしない
+- LaunchAgent用plistはローカルで生成し、コミットしない
+- バンドルIDには個人を特定できる名前を使わない
 
 ## 開発ワークフロー
 
@@ -60,7 +77,7 @@ open http://localhost:8080
 Web UI（`Resources/Web/`）を変更した場合は、必ずPlaywrightでブラウザ確認を行うこと:
 
 1. アプリをビルド・起動: `swift build && swift run TrackAssist`
-2. Playwrightで http://localhost:8080 にアクセス
+2. Playwrightで http://localhost:19080 にアクセス
 3. スナップショットまたはスクリーンショットで表示を確認
 4. 白い画面やレイアウト崩れがないことを確認してから完了とする
 

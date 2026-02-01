@@ -11,7 +11,7 @@ final class AppState: ObservableObject {
     @Published var accessibilityGranted: Bool = false
     @Published var currentApp: String = ""
     @Published var currentWindowTitle: String = ""
-    @Published var serverPort: UInt16 = 8080
+    @Published var serverPort: UInt16 = 19080
 
     private init() {}
 }

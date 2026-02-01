@@ -82,10 +82,58 @@ final class DatabaseManager {
         guard !activities.isEmpty else { return [] }
 
         var segments: [TimelineSegment] = []
-        var currentSegment: (start: Date, app: String, bundleId: String?, titles: Set<String>)?
+        var currentSegment: (start: Date, app: String, bundleId: String?, titles: Set<String>, isIdle: Bool)?
+        var idleStartTime: Date?
 
         for (index, activity) in activities.enumerated() {
-            if activity.isIdle { continue }
+            // アイドル開始イベントを検出
+            if activity.eventType == .idleStart {
+                // 現在のセグメントを閉じる
+                if let segment = currentSegment, !segment.isIdle {
+                    let endTime = activity.timestamp
+                    let duration = Int(endTime.timeIntervalSince(segment.start))
+                    if duration > 0 {
+                        segments.append(TimelineSegment(
+                            startTime: segment.start,
+                            endTime: endTime,
+                            appName: segment.app,
+                            appBundleId: segment.bundleId,
+                            windowTitles: Array(segment.titles).sorted(),
+                            color: colorForApp(segment.app),
+                            durationSeconds: duration,
+                            isIdle: false
+                        ))
+                    }
+                    currentSegment = nil
+                }
+                idleStartTime = activity.timestamp
+                continue
+            }
+
+            // アイドル終了イベントを検出
+            if activity.eventType == .idleEnd {
+                if let startTime = idleStartTime {
+                    let endTime = activity.timestamp
+                    let duration = Int(endTime.timeIntervalSince(startTime))
+                    if duration > 0 {
+                        segments.append(TimelineSegment(
+                            startTime: startTime,
+                            endTime: endTime,
+                            appName: "アイドル",
+                            appBundleId: nil,
+                            windowTitles: [],
+                            color: "#6b7280",
+                            durationSeconds: duration,
+                            isIdle: true
+                        ))
+                    }
+                }
+                idleStartTime = nil
+                continue
+            }
+
+            // アイドル中のアクティビティはスキップ
+            if activity.isIdle || idleStartTime != nil { continue }
 
             if let segment = currentSegment {
                 if segment.app == activity.appName {
@@ -105,7 +153,8 @@ final class DatabaseManager {
                             appBundleId: segment.bundleId,
                             windowTitles: Array(segment.titles).sorted(),
                             color: colorForApp(segment.app),
-                            durationSeconds: duration
+                            durationSeconds: duration,
+                            isIdle: false
                         ))
                     }
                     // 新しいセグメント開始
@@ -113,7 +162,7 @@ final class DatabaseManager {
                     if let title = activity.windowTitle {
                         titles.insert(title)
                     }
-                    currentSegment = (activity.timestamp, activity.appName, activity.appBundleId, titles)
+                    currentSegment = (activity.timestamp, activity.appName, activity.appBundleId, titles, false)
                 }
             } else {
                 // 最初のセグメント
@@ -121,7 +170,7 @@ final class DatabaseManager {
                 if let title = activity.windowTitle {
                     titles.insert(title)
                 }
-                currentSegment = (activity.timestamp, activity.appName, activity.appBundleId, titles)
+                currentSegment = (activity.timestamp, activity.appName, activity.appBundleId, titles, false)
             }
 
             // 最後のアクティビティの場合、セグメントを閉じる
@@ -136,13 +185,33 @@ final class DatabaseManager {
                         appBundleId: segment.bundleId,
                         windowTitles: Array(segment.titles).sorted(),
                         color: colorForApp(segment.app),
-                        durationSeconds: duration
+                        durationSeconds: duration,
+                        isIdle: false
                     ))
                 }
             }
         }
 
-        return segments
+        // 未終了のアイドルセグメントを閉じる（現在もアイドル中の場合）
+        if let startTime = idleStartTime {
+            let endTime = Date()
+            let duration = Int(endTime.timeIntervalSince(startTime))
+            if duration > 0 {
+                segments.append(TimelineSegment(
+                    startTime: startTime,
+                    endTime: endTime,
+                    appName: "アイドル",
+                    appBundleId: nil,
+                    windowTitles: [],
+                    color: "#6b7280",
+                    durationSeconds: duration,
+                    isIdle: true
+                ))
+            }
+        }
+
+        // 時間順にソート
+        return segments.sorted { $0.startTime < $1.startTime }
     }
 
     func fetchDailySummary(for date: Date) throws -> [DailySummary] {

@@ -55,6 +55,7 @@ struct TimelineSegment: Codable {
     let windowTitles: [String]
     let color: String
     let durationSeconds: Int
+    let isIdle: Bool
 }
 
 struct DailySummary: Codable {

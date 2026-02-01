@@ -79,9 +79,10 @@ function showDetails(segment) {
     const startTime = new Date(segment.startTime);
     const endTime = new Date(segment.endTime);
     const duration = formatDuration(segment.durationSeconds);
+    const isIdle = segment.isIdle || false;
 
     let titlesHtml = '';
-    if (segment.windowTitles && segment.windowTitles.length > 0) {
+    if (!isIdle && segment.windowTitles && segment.windowTitles.length > 0) {
         titlesHtml = `
             <div class="detail-titles">
                 <h4>ウィンドウタイトル</h4>
@@ -96,7 +97,7 @@ function showDetails(segment) {
         <div class="detail-item">
             <div class="detail-header">
                 <span class="detail-color" style="background: ${segment.color}"></span>
-                <span class="detail-app">${escapeHtml(segment.appName)}</span>
+                <span class="detail-app" ${isIdle ? 'style="font-style: italic; color: var(--text-secondary);"' : ''}>${escapeHtml(segment.appName)}</span>
                 <span class="detail-time">${formatTime(startTime)} - ${formatTime(endTime)}</span>
             </div>
             <div class="detail-duration">${duration}</div>
@@ -120,9 +121,10 @@ function renderActivityList() {
         const startTime = new Date(segment.startTime);
         const endTime = new Date(segment.endTime);
         const isSelected = selectedSegment && segment.startTime === selectedSegment.startTime;
+        const isIdle = segment.isIdle || false;
 
         return `
-            <div class="activity-item ${isSelected ? 'selected' : ''}" data-index="${index}">
+            <div class="activity-item ${isSelected ? 'selected' : ''} ${isIdle ? 'idle' : ''}" data-index="${index}">
                 <span class="activity-color" style="background: ${segment.color}"></span>
                 <span class="activity-time">${formatTime(startTime)} - ${formatTime(endTime)}</span>
                 <span class="activity-app">${escapeHtml(segment.appName)}</span>

@@ -249,6 +249,15 @@ header h1 {
     background: var(--bg-primary);
 }
 
+.activity-item.idle {
+    opacity: 0.6;
+}
+
+.activity-item.idle .activity-app {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
 .activity-item.selected {
     border-color: var(--accent);
     background: var(--bg-primary);

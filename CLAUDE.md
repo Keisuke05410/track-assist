@@ -72,6 +72,20 @@ open http://localhost:19080
 
 ## 開発ワークフロー
 
+### バックグラウンドサービスの更新
+
+コード変更後、バックグラウンドサービスに反映するには**手動で**以下を実行する（自動更新ではない）:
+
+```bash
+swift build -c release && cp .build/release/TrackAssist ~/.local/bin/ && launchctl kickstart -k gui/$(id -u)/com.keisukekaji.trackassist
+```
+
+| 状況 | 実行するコマンド |
+|------|-----------------|
+| 初回インストール | `./install-service.sh` |
+| コード変更後 | 上記の簡易コマンド |
+| plist変更後 | `./install-service.sh` |
+
 ### UI変更時の確認
 
 Web UI（`Resources/Web/`）を変更した場合は、必ずPlaywrightでブラウザ確認を行うこと:

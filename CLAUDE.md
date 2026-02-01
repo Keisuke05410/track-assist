@@ -15,7 +15,7 @@ macOS用のローカル完結型アクティビティトラッカー。
 | UI | AppKit (NSStatusItem) + SwiftUI |
 | データベース | SQLite (GRDB.swift) |
 | Webサーバー | FlyingFox |
-| タイムラインUI | Vanilla JS + Canvas |
+| タイムラインUI | Vanilla JS |
 
 ## ディレクトリ構成
 
@@ -52,6 +52,17 @@ open http://localhost:8080
 - **アクセシビリティ権限**: ウィンドウタイトル取得に必要。初回起動時にシステム環境設定で許可
 - **データ保持**: SQLiteに保存、1週間で自動削除
 - **ポート**: localhost:8080 を使用
+
+## 開発ワークフロー
+
+### UI変更時の確認
+
+Web UI（`Resources/Web/`）を変更した場合は、必ずPlaywrightでブラウザ確認を行うこと:
+
+1. アプリをビルド・起動: `swift build && swift run TrackAssist`
+2. Playwrightで http://localhost:8080 にアクセス
+3. スナップショットまたはスクリーンショットで表示を確認
+4. 白い画面やレイアウト崩れがないことを確認してから完了とする
 
 ## データベース
 

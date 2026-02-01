@@ -13,6 +13,11 @@ const activityListEl = document.getElementById('activity-list');
 const statusDot = document.querySelector('.status-dot');
 const statusText = document.querySelector('.status-text');
 const totalTimeEl = document.getElementById('total-time');
+const timelineNavBar = document.getElementById('timeline-nav-bar');
+const timelineNavLabels = document.getElementById('timeline-nav-labels');
+
+// Tooltip element (created dynamically)
+let tooltipEl = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -65,12 +70,158 @@ async function loadData() {
 
         timelineData = timeline.segments || [];
 
+        renderTimelineNav();
         renderActivityList();
         updateStatus(status);
         updateTotalTime();
     } catch (error) {
         console.error('Failed to load data:', error);
         updateStatus({ isTracking: false, isIdle: false });
+    }
+}
+
+// Timeline Navigation Bar
+function renderTimelineNav() {
+    if (!timelineData || timelineData.length === 0) {
+        timelineNavBar.innerHTML = '';
+        timelineNavLabels.innerHTML = '';
+        return;
+    }
+
+    // Calculate time range
+    const firstStart = new Date(timelineData[0].startTime);
+    const lastEnd = new Date(timelineData[timelineData.length - 1].endTime);
+    const totalMs = lastEnd - firstStart;
+
+    if (totalMs <= 0) {
+        timelineNavBar.innerHTML = '';
+        timelineNavLabels.innerHTML = '';
+        return;
+    }
+
+    // Render time labels
+    renderTimeLabels(firstStart, lastEnd);
+
+    // Render segments
+    timelineNavBar.innerHTML = timelineData.map((segment, index) => {
+        const start = new Date(segment.startTime);
+        const end = new Date(segment.endTime);
+        const width = ((end - start) / totalMs) * 100;
+        const isIdle = segment.isIdle || false;
+        const isSelected = selectedSegment && segment.startTime === selectedSegment.startTime;
+
+        return `
+            <div class="timeline-nav-segment ${isIdle ? 'idle' : ''} ${isSelected ? 'selected' : ''}"
+                 data-index="${index}"
+                 style="width: ${width}%; background: ${segment.color};"
+                 title="${segment.appName}">
+            </div>
+        `;
+    }).join('');
+
+    // Add event handlers
+    timelineNavBar.querySelectorAll('.timeline-nav-segment').forEach(segmentEl => {
+        segmentEl.addEventListener('click', handleNavSegmentClick);
+        segmentEl.addEventListener('mouseenter', handleNavSegmentMouseEnter);
+        segmentEl.addEventListener('mouseleave', handleNavSegmentMouseLeave);
+    });
+}
+
+function renderTimeLabels(startTime, endTime) {
+    const labels = [];
+    const startHour = startTime.getHours();
+    const endHour = endTime.getHours();
+    const totalHours = endHour - startHour + (endTime.getMinutes() > 0 ? 1 : 0);
+
+    // Determine label interval based on total hours
+    let interval = 1;
+    if (totalHours > 12) interval = 3;
+    else if (totalHours > 6) interval = 2;
+
+    // Add start label
+    labels.push(formatTime(startTime));
+
+    // Add intermediate labels at hour boundaries
+    for (let h = startHour + interval; h <= endHour; h += interval) {
+        if (h > startHour && h < endHour + 1) {
+            labels.push(`${String(h).padStart(2, '0')}:00`);
+        }
+    }
+
+    // Add end label if different from last
+    const endLabel = formatTime(endTime);
+    if (labels[labels.length - 1] !== endLabel) {
+        labels.push(endLabel);
+    }
+
+    timelineNavLabels.innerHTML = labels.map(label => `<span>${label}</span>`).join('');
+}
+
+function handleNavSegmentClick(e) {
+    const index = parseInt(e.target.dataset.index);
+    const segment = timelineData[index];
+    if (segment) {
+        selectedSegment = segment;
+        showDetails(segment);
+        highlightActivityItem(segment);
+        highlightNavSegment(segment);
+    }
+}
+
+function handleNavSegmentMouseEnter(e) {
+    const index = parseInt(e.target.dataset.index);
+    const segment = timelineData[index];
+    if (!segment) return;
+
+    // Create tooltip
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.className = 'timeline-nav-tooltip';
+        document.body.appendChild(tooltipEl);
+    }
+
+    const startTime = new Date(segment.startTime);
+    const endTime = new Date(segment.endTime);
+    const duration = formatDuration(segment.durationSeconds);
+
+    tooltipEl.innerHTML = `
+        <strong>${escapeHtml(segment.appName)}</strong><br>
+        ${formatTime(startTime)} - ${formatTime(endTime)} (${duration})
+    `;
+    tooltipEl.style.display = 'block';
+
+    // Position tooltip
+    const rect = e.target.getBoundingClientRect();
+    const tooltipRect = tooltipEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+
+    // Keep tooltip within viewport
+    if (left < 10) left = 10;
+    if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipRect.width - 10;
+    }
+
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${rect.top - tooltipRect.height - 10}px`;
+}
+
+function handleNavSegmentMouseLeave() {
+    if (tooltipEl) {
+        tooltipEl.style.display = 'none';
+    }
+}
+
+function highlightNavSegment(segment) {
+    timelineNavBar.querySelectorAll('.timeline-nav-segment').forEach(el => {
+        el.classList.remove('selected');
+    });
+
+    const index = timelineData.findIndex(s => s.startTime === segment.startTime);
+    if (index >= 0) {
+        const el = timelineNavBar.querySelector(`[data-index="${index}"]`);
+        if (el) {
+            el.classList.add('selected');
+        }
     }
 }
 
@@ -141,6 +292,7 @@ function renderActivityList() {
                 selectedSegment = segment;
                 showDetails(segment);
                 highlightActivityItem(segment);
+                highlightNavSegment(segment);
             }
         });
     });
